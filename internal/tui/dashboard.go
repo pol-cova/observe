@@ -7,10 +7,10 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/paulcontreras/observe/internal/health"
-	"github.com/paulcontreras/observe/internal/loadtest"
-	"github.com/paulcontreras/observe/internal/metrics/local"
-	"github.com/paulcontreras/observe/internal/prometheus"
+	"github.com/pol-cova/observe/internal/health"
+	"github.com/pol-cova/observe/internal/loadtest"
+	"github.com/pol-cova/observe/internal/metrics/local"
+	"github.com/pol-cova/observe/internal/prometheus"
 )
 
 type Options struct{ PrometheusURL, LoadCommand string }

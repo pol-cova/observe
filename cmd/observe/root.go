@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/paulcontreras/observe/internal/assistant"
-	"github.com/paulcontreras/observe/internal/detect"
-	"github.com/paulcontreras/observe/internal/prometheus"
-	"github.com/paulcontreras/observe/internal/tui"
+	"github.com/pol-cova/observe/internal/assistant"
+	"github.com/pol-cova/observe/internal/detect"
+	"github.com/pol-cova/observe/internal/prometheus"
+	"github.com/pol-cova/observe/internal/tui"
 	"github.com/spf13/cobra"
 )
 

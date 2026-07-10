@@ -1,4 +1,4 @@
-module github.com/paulcontreras/observe
+module github.com/pol-cova/observe
 
 go 1.24.0
 

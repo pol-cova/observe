@@ -1,0 +1,8 @@
+# Build and release output
+dist/
+coverage.out
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/

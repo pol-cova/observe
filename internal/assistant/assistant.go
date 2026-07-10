@@ -2,7 +2,7 @@ package assistant
 
 import (
 	"fmt"
-	"github.com/paulcontreras/observe/internal/metrics/local"
+	"github.com/pol-cova/observe/internal/metrics/local"
 	"strings"
 )
 

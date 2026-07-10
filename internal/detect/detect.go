@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paulcontreras/observe/internal/metrics/local"
+	"github.com/pol-cova/observe/internal/metrics/local"
 )
 
 type Report struct {
