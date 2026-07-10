@@ -97,7 +97,7 @@ func (m model) View() string {
 	}
 	s := m.snapshot
 	var b strings.Builder
-	b.WriteString(title.Render("observe") + muted.Render("  live server health") + "\n")
+	b.WriteString(title.Render("observe") + muted.Render("  live system monitor") + "\n")
 	b.WriteString(muted.Render("q to quit • updates every second") + "\n\n")
 	b.WriteString(row(metric("CPU", fmt.Sprintf("%.1f%%", s.CPU), spark(m.history)), metric("Memory", fmt.Sprintf("%.1f%%", s.Memory), bar(s.Memory)), metric("Disk", fmt.Sprintf("%.1f%%", s.Disk), bar(s.Disk))) + "\n")
 	b.WriteString(row(metric("Network in", local.FormatRate(s.NetIn), ""), metric("Network out", local.FormatRate(s.NetOut), ""), metric("Open ports", ports(s.Ports), "")) + "\n\n")
@@ -111,7 +111,7 @@ func (m model) View() string {
 		if l.Running {
 			status = "running"
 		}
-		b.WriteString("\n" + panel.Width(max(20, m.width-4)).Render(fmt.Sprintf("Load test (%s)\nRPS %.1f  p50 %.1fms  p95 %.1fms  p99 %.1fms  errors %.2f%%\n%s", status, l.RequestsPerSecond, l.P50, l.P95, l.P99, l.ErrorRate, strings.Join(l.Lines, "\n"))) + "\n")
+		b.WriteString("\n" + panel.Width(max(20, m.width-4)).Render(fmt.Sprintf("Workload command (%s)\nRPS %.1f  p50 %.1fms  p95 %.1fms  p99 %.1fms  errors %.2f%%\n%s", status, l.RequestsPerSecond, l.P50, l.P95, l.P99, l.ErrorRate, strings.Join(l.Lines, "\n"))) + "\n")
 	}
 	b.WriteString("\n" + warning.Render("Signals") + "\n")
 	for _, h := range m.hints {

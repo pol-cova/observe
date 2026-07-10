@@ -17,7 +17,7 @@ func Answer(parts []string, s local.Snapshot) string {
 	case strings.Contains(q, "cpu"):
 		b.WriteString("CPU diagnosis\n\n")
 	default:
-		b.WriteString("Current server health\n\n")
+		b.WriteString("Current system health\n\n")
 	}
 	fmt.Fprintf(&b, "CPU is %.1f%%, memory is %.1f%%, and disk is %.1f%%.\n", s.CPU, s.Memory, s.Disk)
 	if s.CPU >= 90 {

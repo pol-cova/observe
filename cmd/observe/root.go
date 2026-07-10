@@ -15,7 +15,7 @@ var prometheusURL, loadCommand string
 
 var rootCmd = &cobra.Command{
 	Use:   "observe",
-	Short: "A zero-config terminal observability dashboard",
+	Short: "A zero-config terminal monitor for one machine",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return tui.Run(tui.Options{PrometheusURL: prometheusURL, LoadCommand: loadCommand})
 	},
@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	rootCmd.Flags().StringVarP(&prometheusURL, "prometheus", "p", "", "Prometheus server URL")
-	rootCmd.Flags().StringVarP(&loadCommand, "load", "l", "", "load test command to run")
+	rootCmd.Flags().StringVarP(&loadCommand, "load", "l", "", "workload command to run alongside monitoring")
 	rootCmd.AddCommand(initCmd, askCmd, presetsCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -43,7 +43,7 @@ var initCmd = &cobra.Command{
 }
 
 var askCmd = &cobra.Command{
-	Use: "ask <question>", Short: "Explain current server health in plain English", Args: cobra.MinimumNArgs(1),
+	Use: "ask <question>", Short: "Explain current system health in plain English", Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		snapshot, err := tui.Snapshot()
 		if err != nil {

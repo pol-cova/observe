@@ -4,7 +4,9 @@
 [![Release](https://img.shields.io/github/v/release/pol-cova/observe?display_name=tag)](https://github.com/pol-cova/observe/releases)
 [![License](https://img.shields.io/github/license/pol-cova/observe)](LICENSE)
 
-`observe` is a zero-config terminal dashboard for understanding what a single server is doing while you run a load test. Start it beside `k6`, `wrk`, `hey`, or `oha` and quickly see whether CPU, memory, disk, network, or a busy process is the likely bottleneck.
+`observe` is a zero-config terminal monitor for a single machine. It gives you a fast, readable view of CPU, memory, disk, network activity, listening ports, and busy processes—whether you are debugging a slow app, checking a development server, or simply keeping an eye on your system.
+
+Prometheus and load-test commands are optional integrations when you need application metrics or want to correlate a workload with system health.
 
 ## Install
 
@@ -17,13 +19,13 @@ go install github.com/pol-cova/observe@latest
 ## Use
 
 ```bash
-# Watch this machine.
+# Monitor this machine.
 observe
 
-# Add Prometheus metric discovery.
+# Discover metrics from Prometheus.
 observe --prometheus http://localhost:9090
 
-# Run a load test alongside live server telemetry.
+# Run any workload command alongside live system telemetry.
 observe --load "k6 run test.js"
 
 # Scan the machine for common services and listening ports.
@@ -40,8 +42,12 @@ Press `q` to leave the dashboard.
 - CPU, memory, disk, network throughput, network errors, and listening TCP ports.
 - The processes using the most CPU.
 - Practical warnings for saturated CPU, high memory use, a nearly full disk, and network errors.
-- Available Prometheus metric names and ready-to-use PromQL presets (`observe presets`).
-- Parsed request rate, latency percentiles, and error rate from compatible load-test output.
+- A simple setup scan for locally running services and common tooling.
+
+## Optional integrations
+
+- **Prometheus:** discover available metric names and browse ready-to-use PromQL presets with `observe presets`.
+- **Workload commands:** run a command in the background and view its recent output alongside system telemetry. `k6`, `wrk`, `hey`, and `oha` output is parsed for common request-rate, latency, and error-rate values.
 
 ## Development
 

@@ -48,7 +48,7 @@ func (r Report) String() string {
 		fmt.Fprintf(&b, "Listening TCP ports: %v\n", ports)
 	}
 	fmt.Fprintf(&b, "Docker: %s\nKubernetes CLI: %s\nPrometheus on localhost:9090: %s\n", yesNo(r.Docker), yesNo(r.Kubernetes), yesNo(r.Prometheus))
-	b.WriteString("\nStart the local dashboard with: observe\n")
+	b.WriteString("\nStart monitoring with: observe\n")
 	if r.Prometheus {
 		b.WriteString("Prometheus detected: observe --prometheus http://localhost:9090\n")
 	} else {
