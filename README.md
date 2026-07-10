@@ -1,9 +1,9 @@
 # observe
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pol-cova/observe/ci.yml?branch=main&label=CI)](https://github.com/pol-cova/observe/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/pol-cova/observe?label=release)](https://github.com/pol-cova/observe/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/pol-cova/observe?label=release&cacheSeconds=300)](https://github.com/pol-cova/observe/releases/latest)
 [![Go version](https://img.shields.io/github/go-mod/go-version/pol-cova/observe)](go.mod)
-[![License](https://img.shields.io/github/license/pol-cova/observe)](LICENSE)
+[![License](https://img.shields.io/github/license/pol-cova/observe?label=license&cacheSeconds=300)](LICENSE)
 
 `observe` is a live, zero-config monitoring cockpit for a single machine. It turns the signals your operating system already exposes into one fast, readable terminal view: CPU pressure, memory and disk use, network throughput and errors, listening ports, and the processes doing the work.
 
