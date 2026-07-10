@@ -14,7 +14,7 @@ func Hints(s local.Snapshot) []string {
 		h = append(h, "Memory usage above 85% — check for leaks or lower worker counts")
 	}
 	if s.Disk >= 90 {
-		h = append(h, "Disk almost full — free space before the test becomes unreliable")
+		h = append(h, "Disk almost full — free space before it affects the system")
 	}
 	if s.NetErrors > 0 {
 		h = append(h, fmt.Sprintf("Network errors detected (%d total)", s.NetErrors))

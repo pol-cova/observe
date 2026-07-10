@@ -4,7 +4,11 @@
 [![Release](https://img.shields.io/github/v/release/pol-cova/observe?display_name=tag)](https://github.com/pol-cova/observe/releases)
 [![License](https://img.shields.io/github/license/pol-cova/observe)](LICENSE)
 
-`observe` is a zero-config terminal monitor for a single machine. It gives you a fast, readable view of CPU, memory, disk, network activity, listening ports, and busy processes—whether you are debugging a slow app, checking a development server, or simply keeping an eye on your system.
+`observe` is a live, zero-config monitoring cockpit for a single machine. It turns the signals your operating system already exposes into one fast, readable terminal view: CPU pressure, memory and disk use, network throughput and errors, listening ports, and the processes doing the work.
+
+Use it to answer *what is this machine doing right now?*—while debugging a slow app, watching a development server, investigating a production box, or running a workload. It highlights likely bottlenecks instead of making you assemble a dashboard first.
+
+![observe running in a terminal](docs/observe.gif)
 
 Prometheus and load-test commands are optional integrations when you need application metrics or want to correlate a workload with system health.
 
@@ -13,6 +17,9 @@ Prometheus and load-test commands are optional integrations when you need applic
 Download an archive from [Releases](https://github.com/pol-cova/observe/releases), or install the latest development version with Go:
 
 ```bash
+brew install pol-cova/homebrew-tap/observe
+
+# Or install the latest development version with Go.
 go install github.com/pol-cova/observe@latest
 ```
 
@@ -43,6 +50,10 @@ Press `q` to leave the dashboard.
 - The processes using the most CPU.
 - Practical warnings for saturated CPU, high memory use, a nearly full disk, and network errors.
 - A simple setup scan for locally running services and common tooling.
+
+## How it works
+
+`observe` runs locally and samples the machine once per second with `gopsutil`. It keeps a short history for the animated CPU sparkline, ranks local processes by CPU use, and turns threshold crossings into plain-language signals. It does not require an account, agent, database, or configuration file, and it does not send your system metrics anywhere.
 
 ## Optional integrations
 

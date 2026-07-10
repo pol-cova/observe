@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/pol-cova/observe/internal/health"
 	"github.com/pol-cova/observe/internal/loadtest"
 	"github.com/pol-cova/observe/internal/metrics/local"
@@ -25,6 +27,7 @@ type model struct {
 	prom        *prometheus.Client
 	metricCount int
 	load        *loadtest.Result
+	pulse       bool
 }
 
 var (
@@ -36,6 +39,8 @@ var (
 )
 
 func Run(options Options) error {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+
 	c := local.New()
 	m := model{collector: c, width: 100}
 	if options.PrometheusURL != "" {
@@ -52,7 +57,11 @@ func Run(options Options) error {
 		}
 		m.load = l
 	}
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	programOptions := []tea.ProgramOption{}
+	if os.Getenv("OBSERVE_NO_ALT_SCREEN") != "1" {
+		programOptions = append(programOptions, tea.WithAltScreen())
+	}
+	p := tea.NewProgram(m, programOptions...)
 	_, err := p.Run()
 	return err
 }
@@ -69,6 +78,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 	case tick:
+		m.pulse = !m.pulse
 		s, e := m.collector.Collect()
 		if e != nil {
 			m.err = e.Error()
@@ -97,8 +107,12 @@ func (m model) View() string {
 	}
 	s := m.snapshot
 	var b strings.Builder
-	b.WriteString(title.Render("observe") + muted.Render("  live system monitor") + "\n")
-	b.WriteString(muted.Render("q to quit • updates every second") + "\n\n")
+	live := good.Render("● LIVE")
+	if !m.pulse {
+		live = muted.Render("○ LIVE")
+	}
+	b.WriteString(title.Render("observe") + muted.Render("  live system monitor  ") + live + "\n")
+	b.WriteString(muted.Render("q to quit • updates every second • CPU sparkline is live") + "\n\n")
 	b.WriteString(row(metric("CPU", fmt.Sprintf("%.1f%%", s.CPU), spark(m.history)), metric("Memory", fmt.Sprintf("%.1f%%", s.Memory), bar(s.Memory)), metric("Disk", fmt.Sprintf("%.1f%%", s.Disk), bar(s.Disk))) + "\n")
 	b.WriteString(row(metric("Network in", local.FormatRate(s.NetIn), ""), metric("Network out", local.FormatRate(s.NetOut), ""), metric("Open ports", ports(s.Ports), "")) + "\n\n")
 	b.WriteString(panel.Width(max(20, m.width-4)).Render("Top processes\n"+processes(s.Processes)) + "\n")
