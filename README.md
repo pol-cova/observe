@@ -47,6 +47,9 @@ observe init
 
 # Get a concise diagnosis from the current local snapshot.
 observe ask "is my server CPU bound?"
+
+# Save a shareable JSON diagnostic bundle.
+observe snapshot --output diagnostics.json
 ```
 
 Press `q` to leave the dashboard.
@@ -54,9 +57,14 @@ Press `q` to leave the dashboard.
 ## What it shows
 
 - CPU, memory, disk, network throughput, network errors, and listening TCP ports.
+- Load average, swap pressure, disk I/O throughput, and I/O wait.
 - The processes using the most CPU.
 - Practical warnings for saturated CPU, high memory use, a nearly full disk, and network errors.
 - A simple setup scan for locally running services and common tooling.
+- Process inspection with command, parent, children, open files, and network connections.
+- Shareable JSON snapshots for attaching to an incident or bug report.
+
+Use `1` through `5` to switch between the overview and CPU, memory, disk, and network history views. Press `s` to sort processes by CPU or memory, `space` to pause collection, and `?` for the complete keyboard reference.
 
 ## How it works
 
