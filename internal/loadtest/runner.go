@@ -42,7 +42,10 @@ func Start(command string) (*Result, error) {
 	return r, nil
 }
 
-var number = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*(req/s|requests/sec|rps|ms|%)`)
+var (
+	number     = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*(req/s|requests/sec|rps|%)`)
+	percentile = regexp.MustCompile(`(?i)p\(?([509]{2})\)?\s*(?:=|:)?\s*(\d+(?:\.\d+)?)\s*ms`)
+)
 
 func (r *Result) add(line string) {
 	r.mu.Lock()
@@ -51,22 +54,26 @@ func (r *Result) add(line string) {
 	if len(r.Lines) > 8 {
 		r.Lines = r.Lines[len(r.Lines)-8:]
 	}
-	matches := number.FindAllStringSubmatch(line, -1)
 	lower := strings.ToLower(line)
-	for _, m := range matches {
+	for _, m := range number.FindAllStringSubmatch(line, -1) {
 		n, _ := strconv.ParseFloat(m[1], 64)
 		unit := strings.ToLower(m[2])
 		switch {
 		case strings.Contains(unit, "req") || unit == "rps":
 			r.RequestsPerSecond = n
-		case strings.Contains(lower, "p99"):
-			r.P99 = n
-		case strings.Contains(lower, "p95"):
-			r.P95 = n
-		case strings.Contains(lower, "p50") || strings.Contains(lower, "median"):
-			r.P50 = n
 		case unit == "%" && strings.Contains(lower, "error"):
 			r.ErrorRate = n
+		}
+	}
+	for _, m := range percentile.FindAllStringSubmatch(line, -1) {
+		n, _ := strconv.ParseFloat(m[2], 64)
+		switch m[1] {
+		case "50":
+			r.P50 = n
+		case "95":
+			r.P95 = n
+		case "99":
+			r.P99 = n
 		}
 	}
 }

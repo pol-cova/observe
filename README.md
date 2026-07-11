@@ -52,9 +52,12 @@ Press `q` to leave the dashboard.
 ## What it shows
 
 - CPU, memory, disk, network throughput, network errors, and listening TCP ports.
+- Load average, swap pressure, disk I/O throughput, and I/O wait.
 - The processes using the most CPU.
 - Practical warnings for saturated CPU, high memory use, a nearly full disk, and network errors.
 - A simple setup scan for locally running services and common tooling.
+
+Use `1` through `5` to switch between the overview and CPU, memory, disk, and network history views. Press `s` to sort processes by CPU or memory, `space` to pause collection, and `?` for the complete keyboard reference.
 
 ## How it works
 
