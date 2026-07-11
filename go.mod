@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/muesli/termenv v0.15.2
+	github.com/pol-cova/termkit-go v0.0.0-20260711180733-eb762ff67200
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.8.1
 )

@@ -13,6 +13,8 @@
 
 Use it to answer *what is this machine doing right now?* while debugging a slow app, watching a development server, investigating a production box, or running a workload. It highlights likely bottlenecks instead of making you assemble a dashboard first.
 
+The live indicator and CPU activity area chart are animated with [termkit-go](https://github.com/pol-cova/termkit-go).
+
 ![observe running in a terminal](docs/observe.gif)
 
 Prometheus and load-test commands are optional integrations when you need application metrics or want to correlate a workload with system health.
@@ -67,7 +69,7 @@ Press `q` to leave the dashboard.
 
 ## Development
 
-Requires Go 1.23 or later.
+Requires Go 1.24 or later.
 
 ```bash
 git clone https://github.com/pol-cova/observe.git

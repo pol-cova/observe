@@ -13,6 +13,9 @@ import (
 	"github.com/pol-cova/observe/internal/loadtest"
 	"github.com/pol-cova/observe/internal/metrics/local"
 	"github.com/pol-cova/observe/internal/prometheus"
+	"github.com/pol-cova/termkit-go/animate"
+	termchart "github.com/pol-cova/termkit-go/chart"
+	"github.com/pol-cova/termkit-go/component"
 )
 
 type Options struct{ PrometheusURL, LoadCommand string }
@@ -27,7 +30,7 @@ type model struct {
 	prom        *prometheus.Client
 	metricCount int
 	load        *loadtest.Result
-	pulse       bool
+	frame       int
 }
 
 var (
@@ -67,7 +70,7 @@ func Run(options Options) error {
 }
 func Snapshot() (local.Snapshot, error) { c := local.New(); return c.Collect() }
 func (m model) Init() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) })
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tick(t) })
 }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -78,23 +81,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 	case tick:
-		m.pulse = !m.pulse
-		s, e := m.collector.Collect()
-		if e != nil {
-			m.err = e.Error()
-		} else {
-			m.snapshot = s
-			m.hints = health.Hints(s)
-			m.history = append(m.history, s.CPU)
-			if len(m.history) > 36 {
-				m.history = m.history[len(m.history)-36:]
-			}
-		}
-		if m.prom != nil && m.metricCount == 0 {
-			if names, e := m.prom.MetricNames(); e == nil {
-				m.metricCount = len(names)
+		m.frame++
+		if m.frame%2 == 0 {
+			s, e := m.collector.Collect()
+			if e != nil {
+				m.err = e.Error()
 			} else {
-				m.err = "Prometheus: " + e.Error()
+				m.snapshot = s
+				m.hints = health.Hints(s)
+				m.history = append(m.history, s.CPU)
+				if len(m.history) > 36 {
+					m.history = m.history[len(m.history)-36:]
+				}
+			}
+			if m.prom != nil && m.metricCount == 0 {
+				if names, e := m.prom.MetricNames(); e == nil {
+					m.metricCount = len(names)
+				} else {
+					m.err = "Prometheus: " + e.Error()
+				}
 			}
 		}
 		return m, m.Init()
@@ -107,14 +112,11 @@ func (m model) View() string {
 	}
 	s := m.snapshot
 	var b strings.Builder
-	live := good.Render("● LIVE")
-	if !m.pulse {
-		live = muted.Render("○ LIVE")
-	}
-	b.WriteString(title.Render("observe") + muted.Render("  live system monitor  ") + live + "\n")
-	b.WriteString(muted.Render("q to quit • updates every second • CPU sparkline is live") + "\n\n")
+	b.WriteString(title.Render("observe") + muted.Render("  live system monitor  ") + liveStatus(m.frame) + "\n")
+	b.WriteString(muted.Render("q to quit • metrics update every second • terminal motion by termkit-go") + "\n\n")
 	b.WriteString(row(metric("CPU", fmt.Sprintf("%.1f%%", s.CPU), spark(m.history)), metric("Memory", fmt.Sprintf("%.1f%%", s.Memory), bar(s.Memory)), metric("Disk", fmt.Sprintf("%.1f%%", s.Disk), bar(s.Disk))) + "\n")
 	b.WriteString(row(metric("Network in", local.FormatRate(s.NetIn), ""), metric("Network out", local.FormatRate(s.NetOut), ""), metric("Open ports", ports(s.Ports), "")) + "\n\n")
+	b.WriteString(cpuChart(m.history, max(28, m.width-8)) + "\n\n")
 	b.WriteString(panel.Width(max(20, m.width-4)).Render("Top processes\n"+processes(s.Processes)) + "\n")
 	if m.prom != nil {
 		b.WriteString("\n" + panel.Width(max(20, m.width-4)).Render(fmt.Sprintf("Prometheus connected  •  %d metrics discovered\nTry: observe presets", m.metricCount)) + "\n")
@@ -139,6 +141,30 @@ func (m model) View() string {
 		b.WriteString(warning.Render("\n"+m.err) + "\n")
 	}
 	return b.String()
+}
+
+func liveStatus(frame int) string {
+	pulse := animate.Pulse(animate.Repeat(frame, 12))
+	tone := component.Success
+	if pulse < 0.35 {
+		tone = component.Muted
+	}
+	return component.SpinnerFrame(frame, "monitoring", tone)
+}
+
+func cpuChart(values []float64, width int) string {
+	if len(values) == 0 {
+		return panel.Width(max(20, width)).Render(muted.Render("CPU activity is collecting…"))
+	}
+	view, err := termchart.Render(termchart.Chart{
+		Kind:   termchart.Area,
+		Title:  "CPU activity",
+		Series: []termchart.Series{{Name: "CPU", Values: values, Variant: termchart.Gradient}},
+	}, termchart.Options{Width: max(20, width), Height: 5, Selected: len(values) - 1, Color: true})
+	if err != nil {
+		return panel.Width(max(20, width)).Render(title.Render("CPU activity") + "\n" + spark(values))
+	}
+	return panel.Width(max(20, width)).Render(view)
 }
 func metric(name, value, detail string) string {
 	return panel.Width(26).Render(title.Render(name) + "\n" + value + "\n" + muted.Render(detail))
