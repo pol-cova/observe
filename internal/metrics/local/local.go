@@ -14,18 +14,22 @@ import (
 )
 
 type Process struct {
-	PID         int32
-	Name        string
-	CPU, Memory float64
+	PID    int32   `json:"pid"`
+	Name   string  `json:"name"`
+	CPU    float64 `json:"cpu_percent"`
+	Memory float64 `json:"memory_percent"`
 }
 type Snapshot struct {
-	CPU, Memory, Disk float64
-	DiskPath          string
-	NetIn, NetOut     float64
-	NetErrors         uint64
-	Processes         []Process
-	Ports             []uint32
-	At                time.Time
+	CPU       float64   `json:"cpu_percent"`
+	Memory    float64   `json:"memory_percent"`
+	Disk      float64   `json:"disk_percent"`
+	DiskPath  string    `json:"disk_path"`
+	NetIn     float64   `json:"network_in_bytes_per_second"`
+	NetOut    float64   `json:"network_out_bytes_per_second"`
+	NetErrors uint64    `json:"network_errors"`
+	Processes []Process `json:"processes"`
+	Ports     []uint32  `json:"listening_ports"`
+	At        time.Time `json:"sampled_at"`
 }
 type Collector struct {
 	last   net.IOCountersStat

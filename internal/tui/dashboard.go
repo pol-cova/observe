@@ -28,6 +28,8 @@ type model struct {
 	metricCount int
 	load        *loadtest.Result
 	pulse       bool
+	selected    int
+	details     *local.ProcessDetails
 }
 
 var (
@@ -75,6 +77,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+		if m.details != nil {
+			if msg.String() == "esc" || msg.String() == "enter" {
+				m.details = nil
+			}
+			return m, nil
+		}
+		switch msg.String() {
+		case "up", "k":
+			if len(m.snapshot.Processes) > 0 {
+				m.selected = max(0, m.selected-1)
+			}
+		case "down", "j":
+			if len(m.snapshot.Processes) > 0 {
+				m.selected = min(len(m.snapshot.Processes)-1, m.selected+1)
+			}
+		case "enter":
+			m.inspectSelectedProcess()
+		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 	case tick:
@@ -105,6 +125,9 @@ func (m model) View() string {
 	if m.width == 0 {
 		return "Loading observe..."
 	}
+	if m.details != nil {
+		return m.processDetailView()
+	}
 	s := m.snapshot
 	var b strings.Builder
 	live := good.Render("● LIVE")
@@ -112,10 +135,10 @@ func (m model) View() string {
 		live = muted.Render("○ LIVE")
 	}
 	b.WriteString(title.Render("observe") + muted.Render("  live system monitor  ") + live + "\n")
-	b.WriteString(muted.Render("q to quit • updates every second • CPU sparkline is live") + "\n\n")
+	b.WriteString(muted.Render("j/k select process • enter inspect • q quit • updates every second") + "\n\n")
 	b.WriteString(row(metric("CPU", fmt.Sprintf("%.1f%%", s.CPU), spark(m.history)), metric("Memory", fmt.Sprintf("%.1f%%", s.Memory), bar(s.Memory)), metric("Disk", fmt.Sprintf("%.1f%%", s.Disk), bar(s.Disk))) + "\n")
 	b.WriteString(row(metric("Network in", local.FormatRate(s.NetIn), ""), metric("Network out", local.FormatRate(s.NetOut), ""), metric("Open ports", ports(s.Ports), "")) + "\n\n")
-	b.WriteString(panel.Width(max(20, m.width-4)).Render("Top processes\n"+processes(s.Processes)) + "\n")
+	b.WriteString(panel.Width(max(20, m.width-4)).Render("Top processes\n"+processes(s.Processes, m.selected)) + "\n")
 	if m.prom != nil {
 		b.WriteString("\n" + panel.Width(max(20, m.width-4)).Render(fmt.Sprintf("Prometheus connected  •  %d metrics discovered\nTry: observe presets", m.metricCount)) + "\n")
 	}
@@ -176,13 +199,73 @@ func ports(p []uint32) string {
 	}
 	return strings.Join(parts, ", ")
 }
-func processes(ps []local.Process) string {
+func (m *model) inspectSelectedProcess() {
+	if len(m.snapshot.Processes) == 0 {
+		return
+	}
+	m.selected = min(m.selected, len(m.snapshot.Processes)-1)
+	details, err := local.Inspect(m.snapshot.Processes[m.selected].PID)
+	if err != nil {
+		m.err = "Process inspection: " + err.Error()
+		return
+	}
+	m.details = &details
+}
+
+func (m model) processDetailView() string {
+	details := m.details
+	var content strings.Builder
+	fmt.Fprintf(&content, "%s\n\nPID %d  CPU %.1f%%  Memory %.1f%%\n", title.Render(details.Name), details.PID, details.CPU, details.Memory)
+	if details.Executable != "" {
+		fmt.Fprintf(&content, "Executable: %s\n", details.Executable)
+	}
+	if details.Command != "" {
+		fmt.Fprintf(&content, "Command: %s\n", details.Command)
+	}
+	if details.ParentPID != 0 {
+		fmt.Fprintf(&content, "Parent PID: %d\n", details.ParentPID)
+	}
+	content.WriteString("\n" + detailSection("Children", childProcessNames(details.Children)))
+	content.WriteString("\n" + detailSection("Open files", details.OpenFiles))
+	content.WriteString("\n" + detailSection("Connections", connectionNames(details.Connections)))
+	content.WriteString("\n" + muted.Render("enter or esc to return • q to quit"))
+	return panel.Width(max(20, m.width-4)).Render(content.String()) + "\n"
+}
+
+func detailSection(title string, values []string) string {
+	if len(values) == 0 {
+		return fmt.Sprintf("%s\n%s\n", title, muted.Render("Not available"))
+	}
+	return fmt.Sprintf("%s\n%s\n", title, strings.Join(values, "\n"))
+}
+
+func childProcessNames(processes []local.Process) []string {
+	values := make([]string, len(processes))
+	for i, process := range processes {
+		values[i] = fmt.Sprintf("%d  %s  %.1f%% CPU", process.PID, process.Name, process.CPU)
+	}
+	return values
+}
+
+func connectionNames(connections []local.Connection) []string {
+	values := make([]string, len(connections))
+	for i, connection := range connections {
+		values[i] = fmt.Sprintf("%s  %s → %s  %s", connection.Type, connection.Local, connection.Remote, connection.Status)
+	}
+	return values
+}
+
+func processes(ps []local.Process, selected int) string {
 	if len(ps) == 0 {
 		return muted.Render("No process information available")
 	}
 	var b strings.Builder
-	for _, p := range ps {
-		fmt.Fprintf(&b, "%-7d %-25s %5.1f%% CPU  %5.1f%% MEM\n", p.PID, truncate(p.Name, 25), p.CPU, p.Memory)
+	for i, p := range ps {
+		marker := " "
+		if i == selected {
+			marker = title.Render("›")
+		}
+		fmt.Fprintf(&b, "%s %-7d %-25s %5.1f%% CPU  %5.1f%% MEM\n", marker, p.PID, truncate(p.Name, 25), p.CPU, p.Memory)
 	}
 	return b.String()
 }
@@ -194,6 +277,13 @@ func truncate(v string, n int) string {
 }
 func max(a, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b
