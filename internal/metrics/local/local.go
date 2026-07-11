@@ -15,20 +15,29 @@ import (
 )
 
 type Process struct {
-	PID         int32
-	Name        string
-	CPU, Memory float64
+	PID    int32   `json:"pid"`
+	Name   string  `json:"name"`
+	CPU    float64 `json:"cpu_percent"`
+	Memory float64 `json:"memory_percent"`
 }
 type Snapshot struct {
-	CPU, IOWait, Memory, Swap, Disk float64
-	Load1, Load5, Load15            float64
-	DiskPath                        string
-	NetIn, NetOut                   float64
-	DiskRead, DiskWrite             float64
-	NetErrors                       uint64
-	Processes                       []Process
-	Ports                           []uint32
-	At                              time.Time
+	CPU       float64   `json:"cpu_percent"`
+	IOWait    float64   `json:"io_wait_percent"`
+	Memory    float64   `json:"memory_percent"`
+	Swap      float64   `json:"swap_percent"`
+	Disk      float64   `json:"disk_percent"`
+	Load1     float64   `json:"load_1"`
+	Load5     float64   `json:"load_5"`
+	Load15    float64   `json:"load_15"`
+	DiskPath  string    `json:"disk_path"`
+	NetIn     float64   `json:"network_in_bytes_per_second"`
+	NetOut    float64   `json:"network_out_bytes_per_second"`
+	DiskRead  float64   `json:"disk_read_bytes_per_second"`
+	DiskWrite float64   `json:"disk_write_bytes_per_second"`
+	NetErrors uint64    `json:"network_errors"`
+	Processes []Process `json:"processes"`
+	Ports     []uint32  `json:"listening_ports"`
+	At        time.Time `json:"sampled_at"`
 }
 type Collector struct {
 	lastNet    net.IOCountersStat

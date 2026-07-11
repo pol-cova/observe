@@ -55,6 +55,8 @@ type model struct {
 	paused      bool
 	help        bool
 	pulse       bool
+	selected    int
+	details     *local.ProcessDetails
 }
 
 var (
@@ -119,9 +121,16 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) handleKey(message tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := message.String()
-	switch key {
-	case "q", "ctrl+c":
+	if key == "q" || key == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.details != nil {
+		if key == "esc" || key == "enter" {
+			m.details = nil
+		}
+		return m, nil
+	}
+	switch key {
 	case "?", "h":
 		m.help = !m.help
 	case " ":
@@ -130,6 +139,15 @@ func (m model) handleKey(message tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.paused = false
 	case "s":
 		m.sort = (m.sort + 1) % 2
+		m.selected = 0
+	case "up", "k":
+		m.selected = max(0, m.selected-1)
+	case "down", "j":
+		if count := len(m.snapshot.Processes); count > 0 {
+			m.selected = min(count-1, m.selected+1)
+		}
+	case "enter":
+		m.inspectSelectedProcess()
 	case "1", "2", "3", "4", "5":
 		m.view = dashboardView(key[0] - '1')
 	}
@@ -164,6 +182,9 @@ func (m model) View() string {
 	if m.width == 0 {
 		return "Loading observe..."
 	}
+	if m.details != nil {
+		return m.processDetailView()
+	}
 	if m.help {
 		return m.helpView()
 	}
@@ -189,7 +210,7 @@ func (m model) header() string {
 		live = muted.Render("○ LIVE")
 	}
 	return title.Render("observe") + muted.Render("  "+m.view.String()+"  ") + live + "\n" +
-		muted.Render("1-5 views • s sort • space pause • r resume • ? help • q quit") + "\n\n"
+		muted.Render("1-5 views • j/k select • enter inspect • s sort • space pause • ? help • q quit") + "\n\n"
 }
 
 func (m model) overview() string {
@@ -232,7 +253,7 @@ func (m model) processPanel() string {
 	if m.sort == sortByMemory {
 		label = "memory"
 	}
-	content := fmt.Sprintf("Top processes  %s\n%s", muted.Render("sorted by "+label), processes(sortedProcesses(m.snapshot.Processes, m.sort)))
+	content := fmt.Sprintf("Top processes  %s\n%s", muted.Render("sorted by "+label), processes(sortedProcesses(m.snapshot.Processes, m.sort), m.selected))
 	return panel.Width(m.contentWidth()).Render(content) + "\n"
 }
 
@@ -272,6 +293,8 @@ func (m model) signals() string {
 func (m model) helpView() string {
 	content := title.Render("Keyboard shortcuts") + "\n\n" +
 		"1-5    switch overview, CPU, memory, disk, and network views\n" +
+		"j/k    select a process\n" +
+		"enter  inspect the selected process\n" +
 		"s      sort processes by CPU or memory\n" +
 		"space  pause local metric collection\n" +
 		"r      resume local metric collection\n" +
@@ -317,13 +340,17 @@ func sortedProcesses(processes []local.Process, by processSort) []local.Process 
 	return result
 }
 
-func processes(list []local.Process) string {
+func processes(list []local.Process, selected int) string {
 	if len(list) == 0 {
 		return muted.Render("No process information available")
 	}
 	var output strings.Builder
-	for _, process := range list {
-		fmt.Fprintf(&output, "%-7d %-25s %5.1f%% CPU  %5.1f%% MEM\n", process.PID, truncate(process.Name, 25), process.CPU, process.Memory)
+	for index, process := range list {
+		marker := " "
+		if index == selected {
+			marker = title.Render("›")
+		}
+		fmt.Fprintf(&output, "%s %-7d %-25s %5.1f%% CPU  %5.1f%% MEM\n", marker, process.PID, truncate(process.Name, 25), process.CPU, process.Memory)
 	}
 	return output.String()
 }
@@ -388,4 +415,61 @@ func maxFloat(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+func (m *model) inspectSelectedProcess() {
+	processes := sortedProcesses(m.snapshot.Processes, m.sort)
+	if len(processes) == 0 {
+		return
+	}
+	m.selected = min(m.selected, len(processes)-1)
+	details, err := local.Inspect(processes[m.selected].PID)
+	if err != nil {
+		m.err = "Process inspection: " + err.Error()
+		return
+	}
+	m.details = &details
+}
+
+func (m model) processDetailView() string {
+	details := m.details
+	var content strings.Builder
+	fmt.Fprintf(&content, "%s\n\nPID %d  CPU %.1f%%  Memory %.1f%%\n", title.Render(details.Name), details.PID, details.CPU, details.Memory)
+	if details.Executable != "" {
+		fmt.Fprintf(&content, "Executable: %s\n", details.Executable)
+	}
+	if details.Command != "" {
+		fmt.Fprintf(&content, "Command: %s\n", details.Command)
+	}
+	if details.ParentPID != 0 {
+		fmt.Fprintf(&content, "Parent PID: %d\n", details.ParentPID)
+	}
+	content.WriteString("\n" + detailSection("Children", childProcessNames(details.Children)))
+	content.WriteString("\n" + detailSection("Open files", details.OpenFiles))
+	content.WriteString("\n" + detailSection("Connections", connectionNames(details.Connections)))
+	content.WriteString("\n" + muted.Render("enter or esc to return • q to quit"))
+	return panel.Width(m.contentWidth()).Render(content.String()) + "\n"
+}
+
+func detailSection(title string, values []string) string {
+	if len(values) == 0 {
+		return fmt.Sprintf("%s\n%s\n", title, muted.Render("Not available"))
+	}
+	return fmt.Sprintf("%s\n%s\n", title, strings.Join(values, "\n"))
+}
+
+func childProcessNames(processes []local.Process) []string {
+	values := make([]string, len(processes))
+	for i, process := range processes {
+		values[i] = fmt.Sprintf("%d  %s  %.1f%% CPU", process.PID, process.Name, process.CPU)
+	}
+	return values
+}
+
+func connectionNames(connections []local.Connection) []string {
+	values := make([]string, len(connections))
+	for i, connection := range connections {
+		values[i] = fmt.Sprintf("%s  %s → %s  %s", connection.Type, connection.Local, connection.Remote, connection.Status)
+	}
+	return values
 }
