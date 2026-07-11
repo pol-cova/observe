@@ -15,6 +15,9 @@ import (
 	"github.com/pol-cova/observe/internal/metrics"
 	"github.com/pol-cova/observe/internal/metrics/local"
 	"github.com/pol-cova/observe/internal/prometheus"
+	"github.com/pol-cova/termkit-go/animate"
+	termchart "github.com/pol-cova/termkit-go/chart"
+	"github.com/pol-cova/termkit-go/component"
 )
 
 const historyCapacity = 30 * 60
@@ -54,7 +57,7 @@ type model struct {
 	sort        processSort
 	paused      bool
 	help        bool
-	pulse       bool
+	frame       int
 	selected    int
 	details     *local.ProcessDetails
 }
@@ -99,7 +102,7 @@ func Snapshot() (local.Snapshot, error) {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) })
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tick(t) })
 }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -109,8 +112,8 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = message.Width
 	case tick:
-		m.pulse = !m.pulse
-		if !m.paused {
+		m.frame++
+		if !m.paused && m.frame%2 == 0 {
 			m.collect()
 		}
 		m.discoverPrometheusMetrics()
@@ -203,11 +206,9 @@ func (m model) View() string {
 }
 
 func (m model) header() string {
-	live := good.Render("● LIVE")
+	live := liveStatus(m.frame)
 	if m.paused {
 		live = warning.Render("Ⅱ PAUSED")
-	} else if !m.pulse {
-		live = muted.Render("○ LIVE")
 	}
 	return title.Render("observe") + muted.Render("  "+m.view.String()+"  ") + live + "\n" +
 		muted.Render("1-5 views • j/k select • enter inspect • s sort • space pause • ? help • q quit") + "\n\n"
@@ -215,14 +216,39 @@ func (m model) header() string {
 
 func (m model) overview() string {
 	snapshot := m.snapshot
-	return m.metricGrid(
+	metrics := m.metricGrid(
 		metric("CPU", percent(snapshot.CPU), spark(m.history.Values(func(s local.Snapshot) float64 { return s.CPU }))),
 		metric("Memory", percent(snapshot.Memory), bar(snapshot.Memory)),
 		metric("Disk", percent(snapshot.Disk), bar(snapshot.Disk)),
 		metric("Network", local.FormatRate(snapshot.NetIn)+" ↓", local.FormatRate(snapshot.NetOut)+" ↑"),
 		metric("Disk I/O", local.FormatRate(snapshot.DiskRead)+" read", local.FormatRate(snapshot.DiskWrite)+" write"),
 		metric("Load", fmt.Sprintf("%.2f / %.2f / %.2f", snapshot.Load1, snapshot.Load5, snapshot.Load15), fmt.Sprintf("I/O wait %s", percent(snapshot.IOWait))),
-	) + "\n"
+	)
+	return metrics + "\n" + cpuChart(m.history.Values(func(s local.Snapshot) float64 { return s.CPU }), m.contentWidth()) + "\n"
+}
+
+func liveStatus(frame int) string {
+	pulse := animate.Pulse(animate.Repeat(frame, 12))
+	tone := component.Success
+	if pulse < 0.35 {
+		tone = component.Muted
+	}
+	return component.SpinnerFrame(frame, "monitoring", tone)
+}
+
+func cpuChart(values []float64, width int) string {
+	if len(values) == 0 {
+		return panel.Width(max(20, width)).Render(muted.Render("CPU activity is collecting…"))
+	}
+	view, err := termchart.Render(termchart.Chart{
+		Kind:   termchart.Area,
+		Title:  "CPU activity",
+		Series: []termchart.Series{{Name: "CPU", Values: values, Variant: termchart.Gradient}},
+	}, termchart.Options{Width: max(20, width), Height: 5, Selected: len(values) - 1, Color: true})
+	if err != nil {
+		return panel.Width(max(20, width)).Render(title.Render("CPU activity") + "\n" + spark(values))
+	}
+	return panel.Width(max(20, width)).Render(view)
 }
 
 func (m model) chartView() string {
