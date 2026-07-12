@@ -63,11 +63,12 @@ type model struct {
 }
 
 var (
-	title   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
-	muted   = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	warning = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	good    = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	panel   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(0, 1)
+	title    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
+	muted    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	warning  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	critical = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	good     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	panel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(0, 1)
 )
 
 func Run(options Options) error {
@@ -248,7 +249,9 @@ func cpuChart(values []float64, width int) string {
 	if err != nil {
 		return panel.Width(max(20, width)).Render(title.Render("CPU activity") + "\n" + spark(values))
 	}
-	return panel.Width(max(20, width)).Render(view)
+	low, high := valueRange(values)
+	legend := muted.Render(fmt.Sprintf("range %.0f–%.0f%% • latest %.1f%%", low, high, values[len(values)-1]))
+	return panel.Width(max(20, width)).Render(view + "\n" + legend)
 }
 
 func (m model) chartView() string {
@@ -279,7 +282,7 @@ func (m model) processPanel() string {
 	if m.sort == sortByMemory {
 		label = "memory"
 	}
-	content := fmt.Sprintf("Top processes  %s\n%s", muted.Render("sorted by "+label), processes(sortedProcesses(m.snapshot.Processes, m.sort), m.selected))
+	content := fmt.Sprintf("CPU consumers  %s\n%s", muted.Render("sorted by "+label), processes(sortedProcesses(m.snapshot.Processes, m.sort), m.selected, m.contentWidth()))
 	return panel.Width(m.contentWidth()).Render(content) + "\n"
 }
 
@@ -366,24 +369,61 @@ func sortedProcesses(processes []local.Process, by processSort) []local.Process 
 	return result
 }
 
-func processes(list []local.Process, selected int) string {
+func processes(list []local.Process, selected, width int) string {
 	if len(list) == 0 {
 		return muted.Render("No process information available")
 	}
+	if width < 68 {
+		return compactProcesses(list, selected)
+	}
 	var output strings.Builder
+	output.WriteString(muted.Render(fmt.Sprintf("%-2s %-7s %-24s %7s  %-20s  %6s\n", "", "PID", "PROCESS", "CPU", "UTILIZATION", "MEM")))
 	for index, process := range list {
 		marker := " "
 		if index == selected {
 			marker = title.Render("›")
 		}
-		fmt.Fprintf(&output, "%s %-7d %-25s %5.1f%% CPU  %5.1f%% MEM\n", marker, process.PID, truncate(process.Name, 25), process.CPU, process.Memory)
+		fmt.Fprintf(&output, "%s %-7d %-24s %6.1f%%  %s  %5.1f%%\n", marker, process.PID, truncate(process.Name, 24), process.CPU, cpuUsageBar(process.CPU), process.Memory)
 	}
+	output.WriteString(muted.Render("Bars: 1 block = 5% of one core; 100% = one fully used core. Higher values use multiple cores."))
+	return output.String()
+}
+
+func compactProcesses(list []local.Process, selected int) string {
+	var output strings.Builder
+	output.WriteString(muted.Render(fmt.Sprintf("%-2s %-6s %-15s %7s  %6s\n", "", "PID", "PROCESS", "CPU", "MEM")))
+	for index, process := range list {
+		marker := " "
+		if index == selected {
+			marker = title.Render("›")
+		}
+		fmt.Fprintf(&output, "%s %-6d %-15s %6.1f%%  %5.1f%%\n", marker, process.PID, truncate(process.Name, 15), process.CPU, process.Memory)
+		output.WriteString("         " + cpuUsageBar(process.CPU) + "\n")
+	}
+	output.WriteString(muted.Render("CPU bars: 1 block = 5% of one core."))
 	return output.String()
 }
 
 func bar(value float64) string {
-	filled := min(10, max(0, int(value/10)))
-	return strings.Repeat("█", filled) + strings.Repeat("░", 10-filled)
+	return usageBar(value, 10, 10)
+}
+
+func usageBar(value float64, blocks int, percentPerBlock float64) string {
+	filled := int(value / percentPerBlock)
+	filled = min(blocks, max(0, filled))
+	return strings.Repeat("█", filled) + strings.Repeat("░", blocks-filled)
+}
+
+func cpuUsageBar(value float64) string {
+	bar := usageBar(value, 20, 5)
+	switch {
+	case value >= 100:
+		return critical.Render(bar)
+	case value >= 70:
+		return warning.Render(bar)
+	default:
+		return good.Render(bar)
+	}
 }
 
 func spark(values []float64) string { return sparkScaled(values, 100) }
@@ -438,6 +478,25 @@ func max(a, b int) int {
 
 func maxFloat(a, b float64) float64 {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func valueRange(values []float64) (float64, float64) {
+	if len(values) == 0 {
+		return 0, 0
+	}
+	low, high := values[0], values[0]
+	for _, value := range values[1:] {
+		low = minFloat(low, value)
+		high = maxFloat(high, value)
+	}
+	return low, high
+}
+
+func minFloat(a, b float64) float64 {
+	if a < b {
 		return a
 	}
 	return b

@@ -49,3 +49,32 @@ func TestBarClampsOutOfRangeValues(t *testing.T) {
 		t.Errorf("large bar = %q", got)
 	}
 }
+
+func TestUsageBarUsesRequestedScale(t *testing.T) {
+	if got, want := usageBar(15, 4, 10), "█░░░"; got != want {
+		t.Fatalf("usageBar() = %q, want %q", got, want)
+	}
+}
+
+func TestCPUConsumerTableIncludesScaleLegend(t *testing.T) {
+	got := processes([]local.Process{{PID: 42, Name: "worker", CPU: 75, Memory: 12.5}}, 0, 100)
+	for _, text := range []string{"PROCESS", "UTILIZATION", "MEM", "75.0%", "1 block = 5% of one core"} {
+		if !strings.Contains(got, text) {
+			t.Fatalf("processes() = %q, missing %q", got, text)
+		}
+	}
+}
+
+func TestCPUConsumerTableHasCompactLayout(t *testing.T) {
+	got := processes([]local.Process{{PID: 42, Name: "worker", CPU: 75, Memory: 12.5}}, 0, 60)
+	if !strings.Contains(got, "CPU bars: 1 block = 5% of one core.") {
+		t.Fatalf("compact processes() = %q, want compact scale legend", got)
+	}
+}
+
+func TestValueRange(t *testing.T) {
+	low, high := valueRange([]float64{12.4, 68.8, 34.1})
+	if low != 12.4 || high != 68.8 {
+		t.Fatalf("valueRange() = %.1f, %.1f; want 12.4, 68.8", low, high)
+	}
+}
