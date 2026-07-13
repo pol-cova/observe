@@ -4,10 +4,6 @@
 [![Latest release](https://img.shields.io/github/v/release/pol-cova/observe?label=release&cacheSeconds=300)](https://github.com/pol-cova/observe/releases/latest)
 [![Go version](https://img.shields.io/github/go-mod/go-version/pol-cova/observe)](go.mod)
 [![License](https://img.shields.io/github/license/pol-cova/observe?label=license&cacheSeconds=300)](LICENSE)
-[![v0.2.0 roadmap](https://img.shields.io/github/milestones/progress/pol-cova/observe/1?label=v0.2.0%20roadmap)](https://github.com/pol-cova/observe/milestone/1)
-[![v0.3.0 roadmap](https://img.shields.io/github/milestones/progress/pol-cova/observe/2?label=v0.3.0%20roadmap)](https://github.com/pol-cova/observe/milestone/2)
-[![v0.4.0 roadmap](https://img.shields.io/github/milestones/progress/pol-cova/observe/3?label=v0.4.0%20roadmap)](https://github.com/pol-cova/observe/milestone/3)
-[![v0.5.0 roadmap](https://img.shields.io/github/milestones/progress/pol-cova/observe/4?label=v0.5.0%20roadmap)](https://github.com/pol-cova/observe/milestone/4)
 
 `observe` is a live, zero-config monitoring cockpit for a single machine. It turns the signals your operating system already exposes into one fast, readable terminal view: CPU pressure, memory and disk use, network throughput and errors, listening ports, and the processes doing the work.
 
@@ -18,6 +14,8 @@ The live indicator and CPU activity area chart are animated with [termkit-go](ht
 ![observe running in a terminal](docs/observe.gif)
 
 Prometheus and load-test commands are optional integrations when you need application metrics or want to correlate a workload with system health.
+
+When Docker is available, the dashboard also shows live container CPU, memory, and network data. An optional `observe.yaml` can set `refresh_interval` (milliseconds), `thresholds` (`cpu`, `memory`, `swap`, `disk`, and `io_wait`), and visible `panels` while the defaults remain zero-config.
 
 ## Install
 
@@ -50,6 +48,9 @@ observe ask "is my server CPU bound?"
 
 # Save a shareable JSON diagnostic bundle.
 observe snapshot --output diagnostics.json
+
+# Monitor a host over SSH (the remote host needs observe installed).
+observe --ssh user@host
 ```
 
 Press `q` to leave the dashboard.

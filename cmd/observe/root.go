@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pol-cova/observe/internal/assistant"
+	"github.com/pol-cova/observe/internal/config"
 	"github.com/pol-cova/observe/internal/detect"
 	"github.com/pol-cova/observe/internal/prometheus"
 	"github.com/pol-cova/observe/internal/snapshot"
@@ -12,19 +13,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var prometheusURL, loadCommand string
+var prometheusURL, loadCommand, sshTarget, configPath string
 
 var rootCmd = &cobra.Command{
 	Use:   "observe",
 	Short: "A zero-config terminal monitor for one machine",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return tui.Run(tui.Options{PrometheusURL: prometheusURL, LoadCommand: loadCommand})
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			return err
+		}
+		return tui.Run(tui.Options{PrometheusURL: prometheusURL, LoadCommand: loadCommand, SSHTarget: sshTarget, Config: cfg})
 	},
 }
 
 func Execute() {
 	rootCmd.Flags().StringVarP(&prometheusURL, "prometheus", "p", "", "Prometheus server URL")
 	rootCmd.Flags().StringVarP(&loadCommand, "load", "l", "", "workload command to run alongside monitoring")
+	rootCmd.Flags().StringVar(&sshTarget, "ssh", "", "remote SSH target (for example user@host)")
+	rootCmd.Flags().StringVar(&configPath, "config", "observe.yaml", "optional dashboard configuration file")
 	rootCmd.AddCommand(initCmd, askCmd, presetsCmd, snapshotCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
