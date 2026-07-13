@@ -1,17 +1,19 @@
 Output docs/observe.gif
 
 Set FontSize 18
-Set Width 1680
-Set Height 900
-Set Margin 20
-Set MarginFill "#111827"
+Set Width 1440
+Set Height 820
+Set Margin 24
+Set MarginFill "#0b1118"
 Set Theme "Dracula"
-Set TypingSpeed 20ms
+Set TypingSpeed 14ms
+Set PlaybackSpeed 1.15
 
 Hide
 Type "clear"
 Enter
+Sleep 300ms
 Type "cat docs/demo-output.txt"
 Enter
 Show
-Sleep 4s
+Sleep 5s
