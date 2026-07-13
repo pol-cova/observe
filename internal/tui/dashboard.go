@@ -10,10 +10,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/pol-cova/observe/internal/config"
+	"github.com/pol-cova/observe/internal/docker"
 	"github.com/pol-cova/observe/internal/health"
 	"github.com/pol-cova/observe/internal/loadtest"
 	"github.com/pol-cova/observe/internal/metrics"
 	"github.com/pol-cova/observe/internal/metrics/local"
+	"github.com/pol-cova/observe/internal/metrics/remote"
 	"github.com/pol-cova/observe/internal/prometheus"
 	"github.com/pol-cova/termkit-go/animate"
 	termchart "github.com/pol-cova/termkit-go/chart"
@@ -22,7 +25,10 @@ import (
 
 const historyCapacity = 30 * 60
 
-type Options struct{ PrometheusURL, LoadCommand string }
+type Options struct {
+	PrometheusURL, LoadCommand, SSHTarget string
+	Config                                config.Config
+}
 type tick time.Time
 
 type dashboardView int
@@ -43,14 +49,17 @@ const (
 )
 
 type model struct {
-	collector *local.Collector
-	snapshot  local.Snapshot
-	history   *metrics.History
-	width     int
-	err       string
-	hints     []string
-	prom      *prometheus.Client
-	load      *loadtest.Result
+	collector  collector
+	snapshot   local.Snapshot
+	history    *metrics.History
+	width      int
+	err        string
+	hints      []string
+	prom       *prometheus.Client
+	load       *loadtest.Result
+	containers []docker.Container
+	config     config.Config
+	remote     bool
 
 	metricCount int
 	view        dashboardView
@@ -60,6 +69,10 @@ type model struct {
 	frame       int
 	selected    int
 	details     *local.ProcessDetails
+}
+
+type collector interface {
+	Collect() (local.Snapshot, error)
 }
 
 var (
@@ -74,7 +87,11 @@ var (
 func Run(options Options) error {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 
-	dashboard := model{collector: local.New(), history: metrics.NewHistory(historyCapacity), width: 100}
+	collector := collector(local.New())
+	if options.SSHTarget != "" {
+		collector = remote.New(options.SSHTarget)
+	}
+	dashboard := model{collector: collector, history: metrics.NewHistory(historyCapacity), width: 100, config: options.Config, remote: options.SSHTarget != ""}
 	if options.PrometheusURL != "" {
 		client, err := prometheus.New(options.PrometheusURL)
 		if err != nil {
@@ -103,7 +120,11 @@ func Snapshot() (local.Snapshot, error) {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tick(t) })
+	interval := 500 * time.Millisecond
+	if m.config.RefreshInterval > 0 {
+		interval = time.Duration(m.config.RefreshInterval) * time.Millisecond
+	}
+	return tea.Tick(interval, func(t time.Time) tea.Msg { return tick(t) })
 }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -166,8 +187,13 @@ func (m *model) collect() {
 	}
 	m.err = ""
 	m.snapshot = snapshot
-	m.hints = health.Hints(snapshot)
 	m.history.Add(snapshot)
+	m.hints = health.HintsWithThresholds(m.history.Samples(), health.Thresholds{CPU: m.config.Thresholds.CPU, Memory: m.config.Thresholds.Memory, Swap: m.config.Thresholds.Swap, Disk: m.config.Thresholds.Disk, IOWait: m.config.Thresholds.IOWait})
+	if !m.remote {
+		if containers, err := docker.Collect(); err == nil {
+			m.containers = containers
+		}
+	}
 }
 
 func (m *model) discoverPrometheusMetrics() {
@@ -200,7 +226,9 @@ func (m model) View() string {
 	} else {
 		output.WriteString(m.chartView())
 	}
-	output.WriteString(m.processPanel())
+	if m.panelEnabled("processes") {
+		output.WriteString(m.processPanel())
+	}
 	output.WriteString(m.integrationPanels())
 	output.WriteString(m.signals())
 	return output.String()
@@ -288,10 +316,10 @@ func (m model) processPanel() string {
 
 func (m model) integrationPanels() string {
 	var output strings.Builder
-	if m.prom != nil {
+	if m.prom != nil && m.panelEnabled("prometheus") {
 		output.WriteString("\n" + panel.Width(m.contentWidth()).Render(fmt.Sprintf("Prometheus connected  •  %d metrics discovered\nTry: observe presets", m.metricCount)) + "\n")
 	}
-	if m.load != nil {
+	if m.load != nil && m.panelEnabled("load") {
 		result := m.load.Copy()
 		status := "finished"
 		if result.Running {
@@ -300,7 +328,35 @@ func (m model) integrationPanels() string {
 		content := fmt.Sprintf("Workload command (%s)\nRPS %.1f  p50 %.1fms  p95 %.1fms  p99 %.1fms  errors %.2f%%\n%s", status, result.RequestsPerSecond, result.P50, result.P95, result.P99, result.ErrorRate, strings.Join(result.Lines, "\n"))
 		output.WriteString("\n" + panel.Width(m.contentWidth()).Render(content) + "\n")
 	}
+	if len(m.containers) > 0 && m.panelEnabled("docker") {
+		output.WriteString("\n" + panel.Width(m.contentWidth()).Render(containerPanel(m.containers)) + "\n")
+	}
 	return output.String()
+}
+
+func (m model) panelEnabled(name string) bool {
+	if len(m.config.Panels) == 0 {
+		return true
+	}
+	for _, panel := range m.config.Panels {
+		if strings.EqualFold(panel, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func containerPanel(containers []docker.Container) string {
+	var b strings.Builder
+	b.WriteString("Docker containers\n")
+	for _, c := range containers {
+		fmt.Fprintf(&b, "%-20s CPU %5.1f%%  MEM %5.1f%%  net %s/%s  %s", truncate(c.Name, 20), c.CPU, c.Memory, local.FormatRate(c.NetworkIn), local.FormatRate(c.NetworkOut), c.Status)
+		if c.Ports != "" {
+			fmt.Fprintf(&b, "  %s", c.Ports)
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 func (m model) signals() string {

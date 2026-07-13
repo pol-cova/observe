@@ -9,6 +9,7 @@ require (
 	github.com/pol-cova/termkit-go v0.0.0-20260711180733-eb762ff67200
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/cobra v1.8.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
