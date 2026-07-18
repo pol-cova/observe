@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/pol-cova/observe/internal/health"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,6 +22,10 @@ type Thresholds struct {
 	Swap   float64 `yaml:"swap"`
 	Disk   float64 `yaml:"disk"`
 	IOWait float64 `yaml:"io_wait"`
+}
+
+func (t Thresholds) Health() health.Thresholds {
+	return health.Thresholds{CPU: t.CPU, Memory: t.Memory, Swap: t.Swap, Disk: t.Disk, IOWait: t.IOWait}
 }
 
 func Load(path string) (Config, error) {

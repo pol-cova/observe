@@ -1,0 +1,24 @@
+refresh_interval: 500
+theme: default
+
+thresholds:
+  cpu: 90
+  memory: 85
+  swap: 25
+  disk: 90
+  io_wait: 20
+
+panels:
+  - overview
+  - processes
+  - prometheus
+  - load
+  - docker
+
+prometheus_presets:
+  - name: Request rate
+    description: Requests handled per second
+    query: sum(rate(http_requests_total[1m]))
+  - name: Queue depth
+    description: Pending background jobs
+    query: queue_depth
