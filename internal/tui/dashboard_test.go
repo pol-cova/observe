@@ -42,10 +42,10 @@ func TestHelpViewListsKeyboardControls(t *testing.T) {
 }
 
 func TestBarClampsOutOfRangeValues(t *testing.T) {
-	if got := bar(-1); got != "░░░░░░░░░░" {
+	if got := usageBar(-1, 10, 10); got != "░░░░░░░░░░" {
 		t.Errorf("negative bar = %q", got)
 	}
-	if got := bar(200); got != "██████████" {
+	if got := usageBar(200, 10, 10); got != "██████████" {
 		t.Errorf("large bar = %q", got)
 	}
 }

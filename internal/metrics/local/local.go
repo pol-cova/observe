@@ -50,6 +50,21 @@ func New() *Collector { return &Collector{} }
 func (c *Collector) Collect() (Snapshot, error) {
 	result := Snapshot{At: time.Now()}
 	var err error
+	if collectErr := collectCPUAndMemory(&result); collectErr != nil && err == nil {
+		err = collectErr
+	}
+	collectLoadAndDisk(&result)
+	now := time.Now()
+	collectNetworkRates(c, now, &result)
+	collectDiskIORates(c, now, &result)
+	c.lastAt = now
+	result.Processes = topProcesses()
+	result.Ports = listeningPorts()
+	return result, err
+}
+
+func collectCPUAndMemory(result *Snapshot) error {
+	var err error
 	if values, e := cpu.Percent(0, false); e == nil && len(values) > 0 {
 		result.CPU = values[0]
 	} else {
@@ -69,55 +84,72 @@ func (c *Collector) Collect() (Snapshot, error) {
 	if values, e := mem.SwapMemory(); e == nil {
 		result.Swap = values.UsedPercent
 	}
-	if values, e := load.Avg(); e == nil {
+	return err
+}
+
+func collectLoadAndDisk(result *Snapshot) {
+	if values, err := load.Avg(); err == nil {
 		result.Load1, result.Load5, result.Load15 = values.Load1, values.Load5, values.Load15
 	}
 	path := "/"
-	if info, e := host.Info(); e == nil && info.OS == "windows" {
+	if info, err := host.Info(); err == nil && info.OS == "windows" {
 		path = "C:"
 	}
-	if values, e := disk.Usage(path); e == nil {
+	if values, err := disk.Usage(path); err == nil {
 		result.Disk = values.UsedPercent
 		result.DiskPath = path
 	}
-	now := time.Now()
-	if values, e := net.IOCounters(false); e == nil && len(values) > 0 {
-		if !c.lastAt.IsZero() {
-			secs := now.Sub(c.lastAt).Seconds()
-			result.NetIn = rate(values[0].BytesRecv, c.lastNet.BytesRecv, secs)
-			result.NetOut = rate(values[0].BytesSent, c.lastNet.BytesSent, secs)
-		}
-		result.NetErrors = values[0].Errin + values[0].Errout
-		c.lastNet = values[0]
+}
+
+func collectNetworkRates(c *Collector, now time.Time, result *Snapshot) {
+	values, err := net.IOCounters(false)
+	if err != nil || len(values) == 0 {
+		return
 	}
-	if counters, e := disk.IOCounters(); e == nil {
-		var total disk.IOCountersStat
-		for _, counter := range counters {
-			total.ReadBytes += counter.ReadBytes
-			total.WriteBytes += counter.WriteBytes
-		}
-		if !c.lastAt.IsZero() {
-			secs := now.Sub(c.lastAt).Seconds()
-			result.DiskRead = rate(total.ReadBytes, c.lastDiskIO.ReadBytes, secs)
-			result.DiskWrite = rate(total.WriteBytes, c.lastDiskIO.WriteBytes, secs)
-		}
-		c.lastDiskIO = total
+	if !c.lastAt.IsZero() {
+		seconds := now.Sub(c.lastAt).Seconds()
+		result.NetIn = rate(values[0].BytesRecv, c.lastNet.BytesRecv, seconds)
+		result.NetOut = rate(values[0].BytesSent, c.lastNet.BytesSent, seconds)
 	}
-	c.lastAt = now
-	result.Processes = topProcesses()
-	if conns, e := net.Connections("tcp"); e == nil {
-		seen := map[uint32]bool{}
-		for _, conn := range conns {
-			if conn.Status == "LISTEN" && conn.Laddr.Port > 0 {
-				seen[conn.Laddr.Port] = true
-			}
-		}
-		for p := range seen {
-			result.Ports = append(result.Ports, p)
-		}
-		sort.Slice(result.Ports, func(i, j int) bool { return result.Ports[i] < result.Ports[j] })
+	result.NetErrors = values[0].Errin + values[0].Errout
+	c.lastNet = values[0]
+}
+
+func collectDiskIORates(c *Collector, now time.Time, result *Snapshot) {
+	counters, err := disk.IOCounters()
+	if err != nil {
+		return
 	}
-	return result, err
+	var total disk.IOCountersStat
+	for _, counter := range counters {
+		total.ReadBytes += counter.ReadBytes
+		total.WriteBytes += counter.WriteBytes
+	}
+	if !c.lastAt.IsZero() {
+		seconds := now.Sub(c.lastAt).Seconds()
+		result.DiskRead = rate(total.ReadBytes, c.lastDiskIO.ReadBytes, seconds)
+		result.DiskWrite = rate(total.WriteBytes, c.lastDiskIO.WriteBytes, seconds)
+	}
+	c.lastDiskIO = total
+}
+
+func listeningPorts() []uint32 {
+	conns, err := net.Connections("tcp")
+	if err != nil {
+		return nil
+	}
+	seen := map[uint32]bool{}
+	for _, conn := range conns {
+		if conn.Status == "LISTEN" && conn.Laddr.Port > 0 {
+			seen[conn.Laddr.Port] = true
+		}
+	}
+	ports := make([]uint32, 0, len(seen))
+	for port := range seen {
+		ports = append(ports, port)
+	}
+	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
+	return ports
 }
 
 func rate(current, previous uint64, seconds float64) float64 {
@@ -126,17 +158,15 @@ func rate(current, previous uint64, seconds float64) float64 {
 	}
 	return float64(current-previous) / seconds
 }
+
 func topProcesses() []Process {
-	ps, err := process.Processes()
+	processes, err := process.Processes()
 	if err != nil {
 		return nil
 	}
-	out := make([]Process, 0, len(ps))
-	for _, p := range ps {
-		n, _ := p.Name()
-		cpu, _ := p.CPUPercent()
-		m, _ := p.MemoryPercent()
-		out = append(out, Process{p.Pid, n, cpu, float64(m)})
+	out := make([]Process, 0, len(processes))
+	for _, handle := range processes {
+		out = append(out, processSummary(handle))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CPU > out[j].CPU })
 	if len(out) > 6 {
@@ -144,6 +174,7 @@ func topProcesses() []Process {
 	}
 	return out
 }
+
 func FormatRate(bytes float64) string {
 	units := []string{"B/s", "KB/s", "MB/s", "GB/s"}
 	i := 0

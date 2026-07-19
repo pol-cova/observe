@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+func PresetByName(name string) (Preset, bool) {
+	for _, preset := range Presets {
+		if strings.EqualFold(preset.Name, name) {
+			return preset, true
+		}
+	}
+	return Preset{}, false
+}
+
 type Preset struct{ Name, Description, Query string }
 
 var Presets = []Preset{

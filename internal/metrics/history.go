@@ -26,6 +26,10 @@ func (h *History) Samples() []local.Snapshot {
 	return append([]local.Snapshot(nil), h.samples...)
 }
 
+func (h *History) ReadSamples() []local.Snapshot {
+	return h.samples
+}
+
 func (h *History) Values(metric func(local.Snapshot) float64) []float64 {
 	values := make([]float64, len(h.samples))
 	for i, sample := range h.samples {
