@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -10,14 +11,27 @@ import (
 	"github.com/pol-cova/observe/internal/snapshot"
 )
 
+const (
+	defaultPort     = 8080
+	maxPortAttempts = 100
+)
+
 type Options struct {
-	Addr  string
-	Path  string
-	Token string
-	CORS  string
+	Bind     string
+	Port     int
+	AutoPort bool
+	Path     string
+	Token    string
+	CORS     string
 }
 
 func Listen(opts Options) error {
+	if opts.Bind == "" {
+		opts.Bind = "127.0.0.1"
+	}
+	if opts.Port == 0 {
+		opts.Port = defaultPort
+	}
 	if opts.Path == "" {
 		opts.Path = "/info"
 	}
@@ -27,11 +41,15 @@ func Listen(opts Options) error {
 	if opts.CORS == "" {
 		opts.CORS = "*"
 	}
-	if opts.Addr == "" {
-		opts.Addr = "127.0.0.1:8080"
-	}
 
-	if strings.HasPrefix(opts.Addr, "0.0.0.0") && opts.Token == "" {
+	listener, port, err := resolveListener(opts.Bind, opts.Port, opts.AutoPort)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	addr := fmt.Sprintf("%s:%d", opts.Bind, port)
+	if strings.HasPrefix(addr, "0.0.0.0") && opts.Token == "" {
 		fmt.Fprintln(
 			os.Stderr,
 			"warning: serving on all interfaces without --token exposes system metrics publicly",
@@ -42,8 +60,48 @@ func Listen(opts Options) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc(opts.Path, infoHandler(collector, opts))
 
-	fmt.Fprintf(os.Stderr, "observe info endpoint listening on http://%s%s\n", opts.Addr, opts.Path)
-	return http.ListenAndServe(opts.Addr, mux)
+	fmt.Fprintf(os.Stderr, "observe info endpoint listening on http://%s%s\n", addr, opts.Path)
+	return http.Serve(listener, mux)
+}
+
+func resolveListener(bind string, port int, autoPort bool) (net.Listener, int, error) {
+	if port == 0 {
+		port = defaultPort
+	}
+	attempts := 1
+	if autoPort {
+		attempts = maxPortAttempts
+	}
+
+	var lastErr error
+	for offset := 0; offset < attempts; offset++ {
+		candidatePort := port + offset
+		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", bind, candidatePort))
+		if err == nil {
+			if offset > 0 {
+				fmt.Fprintf(
+					os.Stderr,
+					"port %d in use, listening on %d instead\n",
+					port,
+					candidatePort,
+				)
+			}
+			return listener, candidatePort, nil
+		}
+		lastErr = err
+		if !autoPort {
+			break
+		}
+	}
+
+	if autoPort {
+		return nil, 0, fmt.Errorf(
+			"no available port found starting from %d: %w",
+			port,
+			lastErr,
+		)
+	}
+	return nil, 0, fmt.Errorf("listen on %s:%d: %w", bind, port, lastErr)
 }
 
 func infoHandler(collector *local.Collector, opts Options) http.HandlerFunc {

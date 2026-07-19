@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -104,5 +105,50 @@ func TestAuthorized(t *testing.T) {
 	}
 	if !authorized(request, "") {
 		t.Fatal("expected empty configured token to allow all requests")
+	}
+}
+
+func TestResolveListenerUsesRequestedPort(t *testing.T) {
+	listener, port, err := resolveListener("127.0.0.1", 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	if port != defaultPort {
+		t.Fatalf("port = %d, want %d", port, defaultPort)
+	}
+}
+
+func TestResolveListenerAutoPortFindsNextFreePort(t *testing.T) {
+	blocker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Close()
+
+	basePort := blocker.Addr().(*net.TCPAddr).Port
+	listener, port, err := resolveListener("127.0.0.1", basePort, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	if port != basePort+1 {
+		t.Fatalf("port = %d, want %d", port, basePort+1)
+	}
+}
+
+func TestResolveListenerStrictPortFailsWhenBusy(t *testing.T) {
+	blocker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Close()
+
+	basePort := blocker.Addr().(*net.TCPAddr).Port
+	_, _, err = resolveListener("127.0.0.1", basePort, false)
+	if err == nil {
+		t.Fatal("expected error when strict port is already in use")
 	}
 }

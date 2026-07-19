@@ -78,6 +78,12 @@ Run `observe serve` to expose the same JSON snapshot as `observe snapshot` over 
 # Local only (default — not reachable from the internet)
 observe serve
 
+# Override the port; if 8080 is busy, auto-port picks the next free one
+observe serve --port 8080
+
+# Require an exact port (fail instead of auto-switching)
+observe serve --port 9000 --auto-port=false
+
 # Public endpoint with bearer token auth
 observe serve --bind 0.0.0.0 --port 8080 --token "your-secret"
 ```
