@@ -32,7 +32,7 @@ func Execute() {
 	rootCmd.Flags().StringVarP(&loadCommand, "load", "l", "", "workload command to run alongside monitoring")
 	rootCmd.Flags().StringVar(&sshTarget, "ssh", "", "remote SSH target (for example user@host)")
 	rootCmd.Flags().StringVar(&configPath, "config", "observe.yaml", "optional dashboard configuration file")
-	rootCmd.AddCommand(initCmd, askCmd, presetsCmd, snapshotCmd)
+	rootCmd.AddCommand(initCmd, askCmd, presetsCmd, snapshotCmd, serveCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
