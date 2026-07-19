@@ -49,6 +49,9 @@ observe ask "is my server CPU bound?"
 # Save a shareable JSON diagnostic bundle.
 observe snapshot --output diagnostics.json
 
+# Expose live machine info as a JSON HTTP endpoint (for dashboards or HTML fetch).
+observe serve --bind 0.0.0.0 --port 8080 --token "your-secret"
+
 # Monitor a host over SSH (the remote host needs observe installed).
 observe --ssh user@host
 ```
@@ -66,6 +69,44 @@ Press `q` to leave the dashboard.
 - Shareable JSON snapshots for attaching to an incident or bug report.
 
 Use `1` through `5` to switch between the overview and CPU, memory, disk, and network history views. Press `s` to sort processes by CPU or memory, `space` to pause collection, and `?` for the complete keyboard reference.
+
+## HTTP info endpoint
+
+Run `observe serve` to expose the same JSON snapshot as `observe snapshot` over HTTP. This is useful for simple dashboards, status pages, or fetching VPS metrics from any frontend.
+
+```bash
+# Local only (default — not reachable from the internet)
+observe serve
+
+# Override the port; if 8080 is busy, auto-port picks the next free one
+observe serve --port 8080
+
+# Require an exact port (fail instead of auto-switching)
+observe serve --port 9000 --auto-port=false
+
+# Public endpoint with bearer token auth
+observe serve --bind 0.0.0.0 --port 8080 --token "your-secret"
+```
+
+Each request to `GET /info` returns fresh metrics with CORS enabled. Example from HTML:
+
+```html
+<script>
+  fetch("http://your-vps:8080/info", {
+    headers: { Authorization: "Bearer your-secret" }
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      console.log(
+        data.machine.hostname,
+        data.metrics.cpu_percent,
+        data.metrics.memory_percent
+      );
+    });
+</script>
+```
+
+For production, bind to `127.0.0.1` and put nginx or Caddy in front for TLS.
 
 ## How it works
 
