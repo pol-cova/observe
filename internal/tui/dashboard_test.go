@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pol-cova/observe/internal/metrics/local"
+	"github.com/pol-cova/observe/internal/prometheus"
 )
 
 func TestSortedProcesses(t *testing.T) {
@@ -76,5 +77,26 @@ func TestValueRange(t *testing.T) {
 	low, high := valueRange([]float64{12.4, 68.8, 34.1})
 	if low != 12.4 || high != 68.8 {
 		t.Fatalf("valueRange() = %.1f, %.1f; want 12.4, 68.8", low, high)
+	}
+}
+
+func TestPrometheusPanelShowsPresetReadings(t *testing.T) {
+	view := model{
+		width:       100,
+		metricCount: 12,
+		prom:        &prometheus.Client{},
+		promReadings: []promReading{
+			{Name: "Request rate", Value: 123.4, OK: true},
+			{Name: "5xx errors", OK: false},
+		},
+	}.integrationPanels()
+	if !strings.Contains(view, "Prometheus connected") || !strings.Contains(view, "Request rate") {
+		t.Fatalf("prometheus panel = %q", view)
+	}
+}
+
+func TestFormatPromValue(t *testing.T) {
+	if got, want := formatPromValue(0.0045), "0.0045"; got != want {
+		t.Fatalf("formatPromValue() = %q, want %q", got, want)
 	}
 }

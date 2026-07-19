@@ -3,10 +3,12 @@ package observe
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/pol-cova/observe/internal/assistant"
 	"github.com/pol-cova/observe/internal/config"
 	"github.com/pol-cova/observe/internal/detect"
+	"github.com/pol-cova/observe/internal/metrics/local"
 	"github.com/pol-cova/observe/internal/prometheus"
 	"github.com/pol-cova/observe/internal/snapshot"
 	"github.com/pol-cova/observe/internal/tui"
@@ -53,11 +55,15 @@ var initCmd = &cobra.Command{
 var askCmd = &cobra.Command{
 	Use: "ask <question>", Short: "Explain current system health in plain English", Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		snapshot, err := tui.Snapshot()
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return err
 		}
-		fmt.Print(assistant.Answer(args, snapshot))
+		history, err := local.SampleHistory(3, 500*time.Millisecond)
+		if err != nil {
+			return err
+		}
+		fmt.Print(assistant.Answer(args, history, cfg.Thresholds.Health()))
 		return nil
 	},
 }

@@ -15,7 +15,7 @@ The live indicator and CPU activity area chart are animated with [termkit-go](ht
 
 Prometheus and load-test commands are optional integrations when you need application metrics or want to correlate a workload with system health.
 
-When Docker is available, the dashboard also shows live container CPU, memory, and network data. An optional `observe.yaml` can set `refresh_interval` (milliseconds), `thresholds` (`cpu`, `memory`, `swap`, `disk`, and `io_wait`), and visible `panels` while the defaults remain zero-config.
+When Docker is available, the dashboard also shows live container CPU, memory, and network data. An optional `observe.yaml` can set `refresh_interval` (milliseconds), `theme` (`default`, `dark`, `light`, or `mono`), `thresholds` (`cpu`, `memory`, `swap`, `disk`, and `io_wait`), visible `panels`, and custom `prometheus_presets` while the defaults remain zero-config. See [observe.yaml.example](observe.yaml.example).
 
 ## Install
 

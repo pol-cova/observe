@@ -49,17 +49,20 @@ const (
 )
 
 type model struct {
-	collector  collector
-	snapshot   local.Snapshot
-	history    *metrics.History
-	width      int
-	err        string
-	hints      []string
-	prom       *prometheus.Client
-	load       *loadtest.Result
-	containers []docker.Container
-	config     config.Config
-	remote     bool
+	collector     collector
+	snapshot      local.Snapshot
+	history       *metrics.History
+	width         int
+	err           string
+	hints         []string
+	prom          *prometheus.Client
+	promPresets   []prometheus.Preset
+	promReadings  []promReading
+	promQueryTick int
+	load          *loadtest.Result
+	containers    []docker.Container
+	config        config.Config
+	remote        bool
 
 	metricCount int
 	view        dashboardView
@@ -75,17 +78,15 @@ type collector interface {
 	Collect() (local.Snapshot, error)
 }
 
-var (
-	title    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
-	muted    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	warning  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	critical = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	good     = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	panel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")).Padding(0, 1)
-)
+type promReading struct {
+	Name  string
+	Value float64
+	OK    bool
+}
 
 func Run(options Options) error {
 	lipgloss.SetColorProfile(termenv.TrueColor)
+	applyTheme(options.Config.Theme)
 
 	collector := collector(local.New())
 	if options.SSHTarget != "" {
@@ -98,6 +99,7 @@ func Run(options Options) error {
 			return err
 		}
 		dashboard.prom = client
+		dashboard.promPresets = prometheus.MergePresets(options.Config.Prometheus)
 	}
 	if options.LoadCommand != "" {
 		result, err := loadtest.Start(options.LoadCommand)
@@ -139,6 +141,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.collect()
 		}
 		m.discoverPrometheusMetrics()
+		m.refreshPrometheusPresets()
 		return m, m.Init()
 	}
 	return m, nil
@@ -206,6 +209,23 @@ func (m *model) discoverPrometheusMetrics() {
 		return
 	}
 	m.metricCount = len(names)
+}
+
+func (m *model) refreshPrometheusPresets() {
+	if m.prom == nil || m.metricCount == 0 || len(m.promPresets) == 0 {
+		return
+	}
+	m.promQueryTick++
+	if m.promQueryTick != 1 && m.promQueryTick%20 != 0 {
+		return
+	}
+	limit := min(3, len(m.promPresets))
+	readings := make([]promReading, 0, limit)
+	for _, preset := range m.promPresets[:limit] {
+		value, err := m.prom.Query(preset.Query)
+		readings = append(readings, promReading{Name: preset.Name, Value: value, OK: err == nil})
+	}
+	m.promReadings = readings
 }
 
 func (m model) View() string {
@@ -317,7 +337,21 @@ func (m model) processPanel() string {
 func (m model) integrationPanels() string {
 	var output strings.Builder
 	if m.prom != nil && m.panelEnabled("prometheus") {
-		output.WriteString("\n" + panel.Width(m.contentWidth()).Render(fmt.Sprintf("Prometheus connected  •  %d metrics discovered\nTry: observe presets", m.metricCount)) + "\n")
+		var content strings.Builder
+		fmt.Fprintf(&content, "Prometheus connected  •  %d metrics discovered\n", m.metricCount)
+		if len(m.promReadings) == 0 {
+			content.WriteString(muted.Render("Querying presets…"))
+		} else {
+			for _, reading := range m.promReadings {
+				if !reading.OK {
+					fmt.Fprintf(&content, "%s  %s\n", reading.Name, muted.Render("no data"))
+					continue
+				}
+				fmt.Fprintf(&content, "%-14s %s\n", reading.Name, formatPromValue(reading.Value))
+			}
+		}
+		content.WriteString(muted.Render("\nobserve presets"))
+		output.WriteString("\n" + panel.Width(m.contentWidth()).Render(content.String()) + "\n")
 	}
 	if m.load != nil && m.panelEnabled("load") {
 		result := m.load.Copy()
@@ -506,6 +540,16 @@ func sparkScaled(values []float64, maximum float64) string {
 }
 
 func percent(value float64) string { return fmt.Sprintf("%.1f%%", value) }
+
+func formatPromValue(value float64) string {
+	if value >= 100 {
+		return fmt.Sprintf("%.1f", value)
+	}
+	if value >= 1 {
+		return fmt.Sprintf("%.2f", value)
+	}
+	return fmt.Sprintf("%.4f", value)
+}
 
 func truncate(value string, limit int) string {
 	if len(value) <= limit {
