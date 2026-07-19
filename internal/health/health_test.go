@@ -9,7 +9,7 @@ import (
 
 func TestHintsReturnsHealthyMessage(t *testing.T) {
 	hints := Hints(local.Snapshot{CPU: 40, Memory: 50, Disk: 60})
-	if len(hints) != 1 || hints[0] != "No immediate resource bottleneck detected" {
+	if len(hints) != 1 || hints[0] != HealthyMessage {
 		t.Fatalf("unexpected healthy hints: %#v", hints)
 	}
 }

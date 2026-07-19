@@ -8,3 +8,25 @@ func TestParseStats(t *testing.T) {
 		t.Fatalf("unexpected container: %#v", got)
 	}
 }
+
+func TestPercentParsesDockerOutput(t *testing.T) {
+	if got := percent("  8.25% "); got != 8.25 {
+		t.Fatalf("percent() = %v, want 8.25", got)
+	}
+}
+
+func TestBytesValueHandlesUnits(t *testing.T) {
+	tests := []struct {
+		input string
+		want  float64
+	}{
+		{"1.5GB", 1.5 * 1024 * 1024 * 1024},
+		{"512KB", 512 * 1024},
+		{"42", 42},
+	}
+	for _, test := range tests {
+		if got := bytesValue(test.input); got != test.want {
+			t.Fatalf("bytesValue(%q) = %v, want %v", test.input, got, test.want)
+		}
+	}
+}

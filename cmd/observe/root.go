@@ -53,11 +53,15 @@ var initCmd = &cobra.Command{
 var askCmd = &cobra.Command{
 	Use: "ask <question>", Short: "Explain current system health in plain English", Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			return err
+		}
 		snapshot, err := tui.Snapshot()
 		if err != nil {
 			return err
 		}
-		fmt.Print(assistant.Answer(args, snapshot))
+		fmt.Print(assistant.Answer(args, snapshot, cfg.Thresholds))
 		return nil
 	},
 }

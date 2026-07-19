@@ -8,11 +8,9 @@ import (
 )
 
 type Config struct {
-	RefreshInterval int                `yaml:"refresh_interval"`
-	Theme           string             `yaml:"theme"`
-	Thresholds      Thresholds         `yaml:"thresholds"`
-	Panels          []string           `yaml:"panels"`
-	Prometheus      []PrometheusPreset `yaml:"prometheus_presets"`
+	RefreshInterval int        `yaml:"refresh_interval"`
+	Thresholds      Thresholds `yaml:"thresholds"`
+	Panels          []string   `yaml:"panels"`
 }
 
 type Thresholds struct {
@@ -39,10 +37,4 @@ func Load(path string) (Config, error) {
 		cfg.RefreshInterval = 500
 	}
 	return cfg, nil
-}
-
-type PrometheusPreset struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Query       string `yaml:"query"`
 }

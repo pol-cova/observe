@@ -8,7 +8,7 @@ import (
 
 func TestLoadConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "observe.yaml")
-	if err := os.WriteFile(path, []byte("refresh_interval: 750\nthresholds:\n  cpu: 80\npanels: [overview, docker]\n"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("refresh_interval: 750\nthresholds:\n  cpu: 80\npanels: [processes, docker]\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
